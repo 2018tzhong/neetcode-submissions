@@ -3,7 +3,11 @@ import anthropic
 import requests
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-changed_files = os.environ["CHANGED_FILES"].strip().split()
+
+with open("changed_files.txt", "rb") as f:
+    content = f.read()
+
+changed_files = [p.decode('utf-8') for p in content.split(b'\0') if p]
 
 for filepath in changed_files:
     if not os.path.exists(filepath):
