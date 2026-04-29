@@ -43,4 +43,6 @@ requests.post(
     },
     json={"body": comment_body}
 )
+print(f"GitHub API response: {response.status_code}")
+print(response.json())
 print(f"Posted review for {filepath}")
