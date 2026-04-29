@@ -28,19 +28,19 @@ Provide:
 5. One key insight to remember for similar problems
 
 Be concise."""
-        }]
-    )
+    }]
+)
 
-    review = message.content[0].text
+review = message.content[0].text
 
-    # Post as a commit comment via GitHub API
-    comment_body = f"## 🤖 Claude Review: `{filepath}`\n\n{review}"
-    requests.post(
-        f"https://api.github.com/repos/{os.environ['REPO']}/commits/{os.environ['COMMIT_SHA']}/comments",
-        headers={
-            "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
-            "Accept": "application/vnd.github+json"
-        },
-        json={"body": comment_body}
-    )
-    print(f"Posted review for {filepath}")
+# Post as a commit comment via GitHub API
+comment_body = f"## 🤖 Claude Review: `{filepath}`\n\n{review}"
+requests.post(
+    f"https://api.github.com/repos/{os.environ['REPO']}/commits/{os.environ['COMMIT_SHA']}/comments",
+    headers={
+        "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+        "Accept": "application/vnd.github+json"
+    },
+    json={"body": comment_body}
+)
+print(f"Posted review for {filepath}")
