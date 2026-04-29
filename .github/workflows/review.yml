@@ -1,0 +1,31 @@
+name: Claude Solution Review
+
+on:
+  push:
+    paths:
+      - "**.py"  # only fire when Python files change
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need previous commit to diff
+
+      - name: Get changed solution files
+        id: changed
+        run: |
+          echo "files=$(git diff --name-only HEAD~1 HEAD -- '*.py' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Review with Claude
+        if: steps.changed.outputs.files != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # built-in, no setup needed
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          pip install anthropic requests
+          python .github/scripts/review.py
