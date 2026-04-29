@@ -3,7 +3,7 @@ name: Claude Solution Review
 on:
   push:
     paths:
-      - "**.py"
+      - "Data Structures & Algorithms/**.py"
 
 jobs:
   review:
