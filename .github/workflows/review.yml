@@ -3,7 +3,7 @@ name: Claude Solution Review
 on:
   push:
     paths:
-      - "**.py"  # only fire when Python files change
+      - "**.py"
 
 jobs:
   review:
@@ -11,22 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # need previous commit to diff
+          fetch-depth: 2
 
-      - name: Get changed solution files
-        id: changed
-        run: |
-          git diff --name-only -z HEAD~1 HEAD -- '*.py' > changed_files.txt
-          echo "found=$(cat changed_files.txt | tr -d '\0' | wc -w)" >> $GITHUB_OUTPUT
-
-      - name: Review with Claude
-        if: steps.changed.outputs.files != ''
+      - name: Run review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # built-in, no setup needed
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
-          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+          CHANGED_FILE: ${{ github.event.head_commit.modified[0] || github.event.head_commit.added[0] }}
         run: |
-          pip install anthropic requests
+          pip install anthropic requests -q
           python .github/scripts/review.py
