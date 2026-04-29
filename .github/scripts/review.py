@@ -4,36 +4,28 @@ import requests
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-with open("changed_files.txt", "rb") as f:
-    content = f.read()
+filepath = os.environ["CHANGED_FILE"]
 
-changed_files = [p.decode('utf-8') for p in content.split(b'\0') if p]
+with open(filepath) as f:
+    code = f.read()
 
-for filepath in changed_files:
-    if not os.path.exists(filepath):
-        continue
-
-    with open(filepath) as f:
-        code = f.read()
-
-    # Get the review from Claude
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": f"""Review this NeetCode/LeetCode solution:
+message = client.messages.create(
+    model="claude-opus-4-5",
+    max_tokens=1024,
+    messages=[{
+        "role": "user",
+        "content": f"""Review this NeetCode/LeetCode solution:
 
 ```python
 {code}
 ```
 
 Provide:
-1. Time and space complexity
-2. Edge cases that may be unhandled
-3. Pythonic improvements
-4. The canonical approach for this problem type, if mine differs
-5. One key insight to internalize for similar problems
+1. Edge cases I may have missed
+2. Code style / pythonic improvements
+3. The canonical approach for this problem type, if mine differs
+4. Any improvements you would make to my implementation
+5. One key insight to remember for similar problems
 
 Be concise."""
         }]
