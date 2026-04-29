@@ -16,7 +16,8 @@ jobs:
       - name: Get changed solution files
         id: changed
         run: |
-          echo "files=$(git diff --name-only HEAD~1 HEAD -- '*.py' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          git diff --name-only -z HEAD~1 HEAD -- '*.py' > changed_files.txt
+          echo "found=$(cat changed_files.txt | tr -d '\0' | wc -w)" >> $GITHUB_OUTPUT
 
       - name: Review with Claude
         if: steps.changed.outputs.files != ''
