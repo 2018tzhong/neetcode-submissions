@@ -19,7 +19,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
-          CHANGED_FILE: ${{ github.event.head_commit.modified[0] || github.event.head_commit.added[0] }}
         run: |
           pip install anthropic requests -q
-          python .github/scripts/review.py
+          CHANGED_FILE=$(git diff --name-only HEAD~1 HEAD -- '*.py' | head -1)
+          echo "Reviewing: $CHANGED_FILE"
+          CHANGED_FILE="$CHANGED_FILE" python .github/scripts/review.py
