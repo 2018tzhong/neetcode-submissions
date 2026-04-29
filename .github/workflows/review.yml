@@ -5,6 +5,9 @@ on:
     paths:
       - "Data Structures & Algorithms/**.py"
 
+permissions:
+  contents: write
+
 jobs:
   review:
     runs-on: ubuntu-latest
