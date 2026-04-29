@@ -35,7 +35,7 @@ review = message.content[0].text
 
 # Post as a commit comment via GitHub API
 comment_body = f"## 🤖 Claude Review: `{filepath}`\n\n{review}"
-requests.post(
+response = requests.post(
     f"https://api.github.com/repos/{os.environ['REPO']}/commits/{os.environ['COMMIT_SHA']}/comments",
     headers={
         "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
