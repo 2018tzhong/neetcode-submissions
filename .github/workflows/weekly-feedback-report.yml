@@ -1,0 +1,130 @@
+name: Weekly LeetCode Feedback Report
+
+on:
+  schedule:
+    - cron: "0 9 * * 0" # Every Sunday at 9am UTC
+  workflow_dispatch: # Allow manual runs
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch commit comments from the past 7 days
+        id: fetch_comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          SINCE=$(date -u -d '7 days ago' +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Fetch all repo-level commit comments, paginating up to 10 pages
+          ALL_COMMENTS="[]"
+          PAGE=1
+          while true; do
+            BATCH=$(curl -s \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/comments?per_page=100&page=$PAGE")
+
+            COUNT=$(echo "$BATCH" | jq 'length')
+            if [ "$COUNT" -eq 0 ]; then break; fi
+
+            # Filter to comments created in the last 7 days
+            FILTERED=$(echo "$BATCH" | jq --arg since "$SINCE" \
+              '[.[] | select(.created_at >= $since)]')
+
+            ALL_COMMENTS=$(echo "$ALL_COMMENTS $FILTERED" | jq -s 'add')
+
+            # If we got fewer than 100, we've reached the end
+            if [ "$COUNT" -lt 100 ]; then break; fi
+            PAGE=$((PAGE + 1))
+          done
+
+          COMMENT_COUNT=$(echo "$ALL_COMMENTS" | jq 'length')
+          echo "Found $COMMENT_COUNT comments from the past 7 days"
+          echo "comment_count=$COMMENT_COUNT" >> $GITHUB_OUTPUT
+
+          # Write comments to file for next step
+          echo "$ALL_COMMENTS" | jq '[.[] | {
+            commit_sha: .commit_id,
+            created_at: .created_at,
+            body: .body
+          }]' > /tmp/comments.json
+
+      - name: Skip if no comments
+        if: steps.fetch_comments.outputs.comment_count == '0'
+        run: |
+          echo "No commit comments found in the past 7 days. Skipping report."
+
+      - name: Generate report with Claude
+        if: steps.fetch_comments.outputs.comment_count != '0'
+        id: claude_report
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          COMMENTS=$(cat /tmp/comments.json)
+          WEEK=$(date -u -d '7 days ago' +"%b %-d")
+          TODAY=$(date -u +"%b %-d, %Y")
+
+          # Build the prompt
+          PROMPT=$(jq -n \
+            --arg comments "$COMMENTS" \
+            --arg week "$WEEK" \
+            --arg today "$TODAY" \
+            '{
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 1500,
+              messages: [{
+                role: "user",
+                content: ("You are a coding coach reviewing automated feedback left on LeetCode submissions. Below are AI-generated code review comments from commits made between " + $week + " and " + $today + ".\n\nYour job is to synthesize these into a concise weekly report. The report should:\n1. Identify recurring themes and patterns (e.g. edge case handling, time complexity, readability)\n2. Call out specific things done well this week\n3. List the top 3-5 concrete areas to focus on improving next week, ordered by importance\n4. Keep the tone constructive and coaching-oriented\n\nFormat the report in Markdown with clear sections. Do not repeat raw feedback verbatim — synthesize and summarize.\n\nHere are the commit comments (JSON):\n" + $comments)
+              }]
+            }')
+
+          RESPONSE=$(curl -s \
+            --max-time 60 \
+            -X POST https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PROMPT")
+
+          # Extract the text content from Claude's response
+          REPORT=$(echo "$RESPONSE" | jq -r '.content[0].text // "Error: Could not generate report."')
+
+          # Write report to file (avoids env var size limits)
+          echo "$REPORT" > /tmp/report.md
+          echo "Report generated ($(wc -c < /tmp/report.md) bytes)"
+
+      - name: Create GitHub Issue with report
+        if: steps.fetch_comments.outputs.comment_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          WEEK_START=$(date -u -d '7 days ago' +"%b %-d")
+          WEEK_END=$(date -u +"%b %-d, %Y")
+          TITLE="Weekly LeetCode Feedback Report: $WEEK_START – $WEEK_END"
+          COMMENT_COUNT=${{ steps.fetch_comments.outputs.comment_count }}
+
+          # Prepend a header with metadata
+          HEADER="## 📊 Weekly LeetCode Feedback Report
+          **Period:** $WEEK_START – $WEEK_END
+          **Commits reviewed:** $COMMENT_COUNT feedback comment(s) analyzed
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M UTC")
+
+          ---
+
+          "
+          BODY="${HEADER}$(cat /tmp/report.md)"
+
+          # Create the issue
+          echo "$BODY" | gh issue create \
+            --repo "$REPO" \
+            --title "$TITLE" \
+            --label "feedback-report" \
+            --body-file -
